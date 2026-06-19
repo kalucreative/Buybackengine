@@ -1,0 +1,13 @@
+# Local database (Render creates its own; never commit test data)
+buyback.db
+buyback.db-journal
+buyback.db-wal
+buyback.db-shm
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / OS
+.DS_Store
+.claude/

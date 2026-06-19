@@ -1,0 +1,2 @@
+# KALU Buyback Engine has no third-party dependencies — it runs on the Python
+# standard library only. This file exists so Render detects a Python service.

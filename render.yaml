@@ -1,0 +1,17 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# The service "name" below becomes the URL:  https://buybackengine.onrender.com
+# (If that name is taken globally on Render, change it to e.g. kalu-buyback.)
+services:
+  - type: web
+    name: buybackengine
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Set this in the Render dashboard to enable real Claude analysis.
+      # Leave unset to use the built-in heuristic engine.
+      - key: ANTHROPIC_API_KEY
+        sync: false
