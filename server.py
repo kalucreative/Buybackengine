@@ -307,7 +307,8 @@ def compute_insights(person=None):
 
 MIME = {".html": "text/html", ".js": "application/javascript",
         ".css": "text/css", ".json": "application/json",
-        ".svg": "image/svg+xml", ".ico": "image/x-icon"}
+        ".svg": "image/svg+xml", ".ico": "image/x-icon",
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
 
 class Handler(BaseHTTPRequestHandler):
