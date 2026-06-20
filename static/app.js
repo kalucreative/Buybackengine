@@ -232,6 +232,7 @@ async function renderPerson(person) {
   }
   function hideError() {
     errEl.hidden = true;
+    errEl.textContent = "";
     input.classList.remove("input-error");
   }
   input.addEventListener("input", hideError);

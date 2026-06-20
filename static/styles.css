@@ -199,6 +199,7 @@ main {
   font-size: 13.5px; font-weight: 600; border: 1px solid rgba(239,68,68,0.25);
   display: flex; align-items: center; gap: 8px; animation: pop .25s ease;
 }
+.add-error[hidden] { display: none; }
 .add-error::before { content: "⚠"; font-size: 15px; }
 .add-input.input-error { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
 
