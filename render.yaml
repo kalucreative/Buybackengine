@@ -11,9 +11,16 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
+      # Store the SQLite database on the persistent disk so data survives
+      # restarts and redeploys.
+      - key: BUYBACK_DB
+        value: /data/buyback.db
       # Set this in the Render dashboard to enable real Claude analysis.
       # Leave unset to use the built-in heuristic engine.
       - key: ANTHROPIC_API_KEY
         sync: false
-    # NOTE: the persistent disk + BUYBACK_DB env var are added in a SECOND step,
-    # once this service is on the Starter plan (Free instances can't have disks).
+    # Persistent disk — keeps buyback.db across deploys/restarts.
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
