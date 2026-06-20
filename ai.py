@@ -46,6 +46,12 @@ _DURATION_PATTERNS = [
 ]
 
 
+def has_duration(text):
+    """True if the text contains a recognizable duration (minutes or hours)."""
+    text = text or ""
+    return any(pattern.search(text) for pattern, _ in _DURATION_PATTERNS)
+
+
 def parse_task(text):
     """Extract a clean task name and a minute count from free text."""
     text = (text or "").strip()

@@ -193,6 +193,14 @@ main {
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .55; cursor: default; }
 .add-hint { color: var(--text-faint); font-size: 12.5px; margin-top: 12px; }
+.add-error {
+  margin-top: 12px; padding: 11px 14px; border-radius: 10px;
+  background: var(--red-soft); color: var(--red-ink);
+  font-size: 13.5px; font-weight: 600; border: 1px solid rgba(239,68,68,0.25);
+  display: flex; align-items: center; gap: 8px; animation: pop .25s ease;
+}
+.add-error::before { content: "⚠"; font-size: 15px; }
+.add-input.input-error { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
 
 .tasklist { margin-top: 34px; }
 .tasklist-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }

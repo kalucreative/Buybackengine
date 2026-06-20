@@ -381,6 +381,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "unknown person"}, 400)
             if not text:
                 return self._json({"error": "empty task"}, 400)
+            if not ai.has_duration(text):
+                return self._json({
+                    "error": "Add meg mennyi időt töltöttél a feladattal! (pl. „- 10p”)",
+                    "code": "NO_TIME",
+                }, 400)
             try:
                 task = create_task(person, text)
                 return self._json(task, 201)

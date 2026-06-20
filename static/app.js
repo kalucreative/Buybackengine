@@ -18,6 +18,12 @@ const h = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const fmtH = (x) => (x % 1 === 0 ? x.toFixed(0) : x.toFixed(1));
 
+// Mirrors ai.py duration detection — true if the text contains minutes/hours.
+function hasDuration(text) {
+  return /\d+(?:[.,]\d+)?\s*(?:h\b|hr\b|hours?\b|ó[raást]*\b)/i.test(text) ||
+         /\d+\s*(?:p|perc|min|minute|m)\b/i.test(text);
+}
+
 const ENERGY_CLASS = { green: "b-green", yellow: "b-yellow", red: "b-red" };
 const ENERGY_LABEL = { green: "Energizing", yellow: "Neutral", red: "Draining" };
 const DECISION_CLASS = {
@@ -202,6 +208,7 @@ async function renderPerson(person) {
           placeholder="Feladat amivel foglalkoztál - Amennyi időt igénybe vett" />
         <button class="btn" type="submit" id="saveBtn">Save</button>
       </form>
+      <div class="add-error" id="addError" hidden></div>
       <div class="add-hint">Examples: <em>KPMG grafika check - 10p</em> · <em>Lilinek TikTok kód - 2p</em> · <em>Dáviddal meeting - 25p</em></div>
       <div class="tasklist">
         <div class="tasklist-head"><div class="card-title" style="margin:0">Recent tasks</div>
@@ -214,7 +221,20 @@ async function renderPerson(person) {
   const form = document.getElementById("addForm");
   const saveBtn = document.getElementById("saveBtn");
   const listEl = document.getElementById("taskList");
+  const errEl = document.getElementById("addError");
   input.focus();
+
+  const NO_TIME_MSG = "Add meg mennyi időt töltöttél a feladattal! (pl. „- 10p”)";
+  function showError(msg) {
+    errEl.textContent = msg || NO_TIME_MSG;
+    errEl.hidden = false;
+    input.classList.add("input-error");
+  }
+  function hideError() {
+    errEl.hidden = true;
+    input.classList.remove("input-error");
+  }
+  input.addEventListener("input", hideError);
 
   async function load() {
     const tasks = await api.get(`/api/tasks?person=${encodeURIComponent(person)}`);
@@ -227,7 +247,10 @@ async function renderPerson(person) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = input.value.trim();
+    hideError();
     if (!text) return;
+    // require a duration before saving (instant client-side check)
+    if (!hasDuration(text)) { showError(); return; }
     saveBtn.disabled = true;
     // optimistic "analyzing" card
     listEl.insertAdjacentHTML("afterbegin",
@@ -235,7 +258,11 @@ async function renderPerson(person) {
         <div class="analyzing" style="margin-top:10px"><span class="spinner"></span> AI analyzing…</div></div>`);
     input.value = "";
     try {
-      await api.post("/api/tasks", { person, text });
+      const res = await api.post("/api/tasks", { person, text });
+      if (res && res.error) {       // server backstop (e.g. no duration)
+        input.value = text;
+        showError(res.error);
+      }
     } finally {
       saveBtn.disabled = false;
       await load();
