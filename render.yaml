@@ -5,13 +5,22 @@ services:
   - type: web
     name: buybackengine
     runtime: python
-    plan: free
+    plan: starter            # paid tier: never sleeps + allows a persistent disk
     buildCommand: pip install -r requirements.txt
     startCommand: python server.py
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
+      # Store the SQLite database on the persistent disk so data survives
+      # restarts and redeploys.
+      - key: BUYBACK_DB
+        value: /data/buyback.db
       # Set this in the Render dashboard to enable real Claude analysis.
       # Leave unset to use the built-in heuristic engine.
       - key: ANTHROPIC_API_KEY
         sync: false
+    # Persistent disk — keeps buyback.db across deploys/restarts.
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
