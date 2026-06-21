@@ -18,6 +18,14 @@ const h = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const fmtH = (x) => (x % 1 === 0 ? x.toFixed(0) : x.toFixed(1));
 
+// Format a stored ISO timestamp as "MM.DD - HH:MM" in the viewer's local time.
+function fmtDateTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}.${p(d.getDate())} - ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 // Mirrors ai.py duration detection — true if the text contains minutes/hours.
 function hasDuration(text) {
   return /\d+(?:[.,]\d+)?\s*(?:h\b|hr\b|hours?\b|ó[raást]*\b)/i.test(text) ||
@@ -295,6 +303,7 @@ function taskCard(t) {
       ${flags.join("")}
     </div>
     ${recs ? `<div class="task-recs"><div class="rt">Buy-back moves · owner: ${h(t.recommended_owner)}</div><ul>${recs}</ul></div>` : ""}
+    <div class="task-time">${h(fmtDateTime(t.created_at))}</div>
   </div>`;
 }
 
