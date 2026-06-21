@@ -261,10 +261,17 @@ main {
     transition: transform .2s ease; box-shadow: 0 0 40px rgba(0,0,0,.6);
   }
   .sidebar.open { transform: none; }
-  main { padding: 64px 18px 50px; }
-  .cols-2 { grid-template-columns: 1fr; }
-  .kpis { grid-template-columns: 1fr 1fr; }
+  main { padding: 64px 18px 50px; overflow-x: hidden; }
+  /* minmax(0,1fr) lets cards shrink below their content so long task names
+     truncate with an ellipsis instead of pushing the page wider (no sideways scroll) */
+  .cols-2 { grid-template-columns: minmax(0, 1fr); }
+  .cols-3 { grid-template-columns: minmax(0, 1fr); }
+  .kpis { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .card { min-width: 0; }
   .add-wrap { margin-top: 10px; }
   .add-form { flex-direction: column; }
   .btn { padding: 14px; }
+  /* shrink only the placeholder so the full hint fits; typed text stays readable */
+  .add-input { padding: 14px 14px; }
+  .add-input::placeholder { font-size: 12px; letter-spacing: -0.2px; }
 }
