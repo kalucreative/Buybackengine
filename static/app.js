@@ -247,12 +247,48 @@ function bindDashFilter() {
   const db = document.getElementById("dashDate");
   if (db) db.addEventListener("click", () =>
     openDatePicker(db, dashRange, (r) => { dashRange = r; renderDashboard(); }));
+  bindReanalyze();
+}
+
+// Re-run the AI on every task (e.g. after the classification logic changed).
+async function reanalyzeAll(onProgress) {
+  const tasks = await api.get("/api/tasks");
+  const ids = tasks.map((t) => t.id);
+  let done = 0, idx = 0;
+  async function worker() {
+    while (idx < ids.length) {
+      const id = ids[idx++];
+      try { await api.post(`/api/tasks/${id}/reanalyze`, {}); } catch (e) { /* keep going */ }
+      onProgress(++done, ids.length);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(3, ids.length) }, worker));
+  return ids.length;
+}
+
+function bindReanalyze() {
+  const btn = document.getElementById("reanalyzeBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (!confirm("Az összes taszk újraelemzése az aktuális AI-logika (új részlegek) szerint. Ez kis token-költséggel jár. Folytatod?")) return;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Újraelemzés… 0/0`;
+    try {
+      await reanalyzeAll((d, t) => { btn.innerHTML = `<span class="spinner"></span> Újraelemzés… ${d}/${t}`; });
+      btn.innerHTML = "✓ Kész";
+      setTimeout(renderDashboard, 900);
+    } catch (e) {
+      btn.disabled = false;
+      btn.innerHTML = "⟳ Újraelemzés";
+    }
+  });
 }
 
 async function renderDashboard() {
   const head = (sub) => `<div class="page-head">
     <div class="head-row"><div class="page-title">Dashboard</div>
-      <div class="head-controls">${segmented("dashFilter", dashPerson)}${dateBtnHTML("dashDate", dashRange)}</div></div>
+      <div class="head-controls">${segmented("dashFilter", dashPerson)}${dateBtnHTML("dashDate", dashRange)}
+        <button class="reanalyze-btn" id="reanalyzeBtn" title="Az összes taszk újraelemzése az aktuális AI-logika szerint">⟳ Újraelemzés</button></div></div>
     <div class="page-sub">${sub}</div></div>`;
   view.innerHTML = head("Where founder time goes — and how much we can buy back.") + `<div class="empty">Loading…</div>`;
   bindDashFilter();

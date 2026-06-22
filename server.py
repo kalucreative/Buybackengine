@@ -150,6 +150,31 @@ def update_task(tid, text):
     return row_to_task(row)
 
 
+def reanalyze_task(tid):
+    """Re-run the AI analysis on a task using its stored name/minutes/person.
+    Keeps the text, minutes and created_at; only the analysis fields change."""
+    with db() as conn:
+        row = conn.execute(
+            "SELECT task_name, minutes, person FROM tasks WHERE id=?", (tid,)).fetchone()
+    if not row:
+        return None
+    a = ai.analyze(row["task_name"], row["minutes"], row["person"])
+    with _db_lock, db() as conn:
+        conn.execute("""
+            UPDATE tasks SET department=?, business_value=?, energy=?, interrupt=?,
+                drip=?, decision=?, recommended_owner=?, recommended_role=?,
+                automatable=?, playbook_needed=?, weekly_time_estimate=?,
+                recommendations=?, engine=? WHERE id=?
+        """, (
+            a["department"], a["business_value"], a["energy"], int(a["interrupt"]),
+            a["drip"], a["decision"], a["recommended_owner"], a["recommended_role"],
+            int(a["automatable"]), int(a["playbook_needed"]), a["weekly_time_estimate"],
+            json.dumps(a["recommendations"]), a["engine"], tid,
+        ))
+        r = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+    return row_to_task(r)
+
+
 def delete_task(tid):
     with _db_lock, db() as conn:
         conn.execute("DELETE FROM tasks WHERE id=?", (tid,))
@@ -270,17 +295,12 @@ def _slim(t):
             "recommended_owner": t["recommended_owner"]}
 
 
-# Map departments / decisions to the role that would absorb the work.
+# Map departments to the role that would absorb the work.
 ROLE_MAP = {
     "Founder Assistant": {
-        "match": lambda t: t["department"] in ("Admin", "Operations")
-        and t["business_value"] in ("$", "$$"),
-        "covers": "Admin, access, scheduling, Slack triage, founder support",
-    },
-    "Operations Assistant": {
         "match": lambda t: t["department"] == "Operations"
-        and t["business_value"] == "$$",
-        "covers": "Coordination, internal organization, problem-solving",
+        and t["business_value"] in ("$", "$$"),
+        "covers": "Admin, access, scheduling, Slack triage, coordination, founder support",
     },
     "Finance Assistant": {
         "match": lambda t: t["department"] == "Finance",
@@ -289,6 +309,10 @@ ROLE_MAP = {
     "Delivery / PM Lead": {
         "match": lambda t: t["department"] == "Client Success",
         "covers": "Client reporting, status, statistics, project ownership",
+    },
+    "Content / Marketing Assistant": {
+        "match": lambda t: t["department"] == "Marketing",
+        "covers": "Company content, recordings, blog posts, social media",
     },
 }
 
@@ -431,6 +455,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
+        parts = u.path.strip("/").split("/")
+        if len(parts) == 4 and parts[0] == "api" and parts[1] == "tasks" and parts[3] == "reanalyze":
+            try:
+                task = reanalyze_task(int(parts[2]))
+                if task is None:
+                    return self._json({"error": "not found"}, 404)
+                return self._json(task)
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
         if u.path == "/api/tasks":
             data = self._body()
             person = (data.get("person") or "").strip()

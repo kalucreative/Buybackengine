@@ -20,8 +20,8 @@ import urllib.error
 # ---------------------------------------------------------------------------
 
 DEPARTMENTS = [
-    "Leadership", "Sales", "Client Success", "Operations",
-    "Production", "Finance", "HR", "Admin",
+    "Strategy", "Team building", "Sales", "Client Success",
+    "Marketing", "Operations", "Finance", "HR",
 ]
 BUSINESS_VALUES = ["$", "$$", "$$$", "$$$$"]
 ENERGY = ["green", "yellow", "red"]
@@ -93,9 +93,26 @@ through delegation, automation, processes (SOPs), and hiring.
 Think like a sharp COO / operations consultant / founder's chief of staff.
 Tasks arrive in Hungarian or English. Understand both.
 
+DEPARTMENTS — classify by the task's FUNCTION (what area it belongs to), NOT by how
+valuable it is (value is captured separately in business_value). Pick exactly one:
+- "Strategy": vision, planning, major decisions, partnerships, fundraising, company
+  direction and growth — founder-level strategic thinking.
+- "Team building": leading and managing the existing team — 1:1s, coaching, motivation,
+  internal team meetings, organizational/people decisions (NOT recruiting paperwork).
+- "Sales": new business — sales calls, offers, follow-ups, new leads, pitches, deals.
+- "Client Success": existing clients — client calls, reports, statistics, feedback,
+  project status, retention, handling client issues and relationships.
+- "Marketing": KALU's OWN marketing — content the company makes for itself (recordings,
+  videos, blog posts), social media, brand, ads for KALU.
+- "Operations": day-to-day execution and coordination — internal organization, Slack,
+  calendar, scheduling, access/permissions, admin, files, problem-solving, and
+  production/editing execution. This is the default for low-value operational work.
+- "Finance": invoices, payments, subscriptions, banking, accounting.
+- "HR": recruiting, applicants, interviews, contracts, vacations, onboarding.
+
 Return ONLY a JSON object (no prose, no markdown) with EXACTLY these keys:
 {
-  "department": one of ["Leadership","Sales","Client Success","Operations","Production","Finance","HR","Admin"],
+  "department": one of ["Strategy","Team building","Sales","Client Success","Marketing","Operations","Finance","HR"],
   "business_value": one of ["$","$$","$$$","$$$$"],   // $ anyone, $$ trained employee, $$$ experienced manager, $$$$ founder-level
   "energy": one of ["green","yellow","red"],          // green=energizing, yellow=neutral, red=draining
   "interrupt": true|false,                             // did this break deep work / context-switch the founder?
@@ -158,26 +175,31 @@ _KW = {
                  "konyvel", "spar", "adó", "ado", "pénzügy", "penzugy"],
     "HR": ["interjú", "interju", "jelentkez", "applicant", "interview", "szerződés",
             "szerzodes", "contract", "onboard", "szabadság", "szabadsag", "vacation",
-            "felvétel", "felvetel", "hr", "toborz"],
+            "felvétel", "felvetel", "toborz", "állás", "allas"],
     "Sales": ["sales", "ajánlat", "ajanlat", "offer", "lead", "follow-up", "followup",
                "értékesít", "ertekesit", "deal", "pitch", "upsell", "új ügyfél",
                "uj ugyfel", "prospect", "partnership", "partner"],
-    "Production": ["videó", "video", "vágás", "vagas", "edit", "forgatás", "forgatas",
-                    "shoot", "script", "forgatókönyv", "forgatokonyv", "grafik",
-                    "graphic", "thumbnail", "render", "b-roll", "broll", "anyag"],
+    "Marketing": ["marketing", "blog", "blogcikk", "cikk", "social", "közösségi",
+                   "kozossegi", "brand", "márka", "marka", "podcast", "reklám",
+                   "reklam", "kampány", "kampany", "saját tartalom", "sajat tartalom",
+                   "céges videó", "ceges video"],
     "Client Success": ["ügyfél", "ugyfel", "client", "statisztik", "statistic",
                         "metricool", "report", "riport", "feedback", "visszajelz",
                         "státusz", "statusz", "status", "kpmg", "biohair", "kgyd"],
+    "Team building": ["csapat", "csapatépít", "csapatepit", "csapatvezet", "vezetői",
+                       "vezetoi", "leadership", "motivác", "motivac", "coaching",
+                       "1:1", "egy az egyben", "team"],
+    "Strategy": ["stratég", "strateg", "strategy", "vízió", "vizio", "vision",
+                  "döntés", "dontes", "decision", "roadmap", "tervezés", "tervezes",
+                  "növekedés", "novekedes", "growth"],
     "Operations": ["slack", "koordin", "calendar", "naptár", "naptar", "meeting",
-                    "meeting", "ütemez", "utemez", "schedul", "átrak", "atrak",
-                    "egyeztet", "szervez", "blokk", "block", "problem", "fennakad"],
-    "Admin": ["email", "e-mail", "jogosultság", "jogosultsag", "permission", "access",
-               "hozzáfér", "hozzafer", "drive", "tiktok kód", "tiktok kod", "kód",
-               "kod", "letölt", "letolt", "download", "feltölt", "feltolt", "admin",
-               "fájl", "fajl", "file"],
-    "Leadership": ["stratég", "strateg", "strategy", "hiring terv", "vízió", "vizio",
-                    "vision", "döntés", "dontes", "decision", "roadmap", "csapat",
-                    "vezetői", "vezetoi", "leadership", "tervezés", "tervezes"],
+                    "ütemez", "utemez", "schedul", "átrak", "atrak", "egyeztet",
+                    "szervez", "blokk", "block", "problem", "fennakad", "email",
+                    "e-mail", "jogosultság", "jogosultsag", "permission", "access",
+                    "hozzáfér", "hozzafer", "drive", "tiktok kód", "tiktok kod",
+                    "kód", "kod", "letölt", "letolt", "download", "feltölt", "feltolt",
+                    "admin", "fájl", "fajl", "file", "vágás", "vagas", "edit",
+                    "forgatás", "forgatas", "render", "thumbnail", "grafik", "anyag"],
 }
 
 _RED = ["slack", "kód", "kod", "code", "jogosultság", "jogosultsag", "permission",
@@ -203,8 +225,8 @@ def _has(text, words):
 def heuristic_analyze(task_name, minutes, person):
     t = task_name.lower()
 
-    # Department: score by keyword hits, default Admin
-    dept = "Admin"
+    # Department: score by keyword hits, default Operations
+    dept = "Operations"
     best = 0
     for d, words in _KW.items():
         score = sum(1 for w in words if w in t)
@@ -222,13 +244,16 @@ def heuristic_analyze(task_name, minutes, person):
     interrupt = _has(t, _INTERRUPT) or (minutes <= 10 and energy == "red")
     automatable = _has(t, _AUTOMATABLE)
 
-    # Business value by department + energy
-    if dept == "Leadership" or (dept == "Sales" and minutes >= 20):
+    # Business value by department
+    if dept in ("Strategy", "Team building") or (dept == "Sales" and minutes >= 20):
         value = "$$$$"
     elif dept in ("Client Success", "Sales"):
         value = "$$$"
-    elif dept in ("Operations", "Finance", "HR", "Production"):
+    elif dept in ("Marketing", "Finance", "HR"):
         value = "$$"
+    elif dept == "Operations":
+        # trivial reactive ops are $; coordination is $$
+        value = "$" if (interrupt and minutes <= 10) else "$$"
     else:
         value = "$"
 
@@ -265,12 +290,12 @@ def heuristic_analyze(task_name, minutes, person):
         owner, role = "Keep with founder", "Founder"
     elif dept == "Finance":
         owner, role = "Finance Assistant", "Finance Assistant"
-    elif dept in ("Operations", "Admin"):
+    elif dept == "Operations":
         owner, role = "Founder Assistant", "Founder / Operations Assistant"
     elif dept == "Client Success":
         owner, role = "Delivery Manager", "Delivery / PM Lead"
-    elif dept == "Production":
-        owner, role = "Production team", "Producer / Editor"
+    elif dept == "Marketing":
+        owner, role = "Content / Marketing Assistant", "Content / Marketing Assistant"
     elif dept == "HR":
         owner, role = "Ops / HR Assistant", "Operations Assistant"
     else:
