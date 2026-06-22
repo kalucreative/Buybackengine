@@ -63,12 +63,24 @@ def init_db():
                 recommendations TEXT,
                 engine TEXT,
                 needs_clarification INTEGER DEFAULT 0,
-                clarification_question TEXT DEFAULT ''
+                clarification_question TEXT DEFAULT '',
+                corrected INTEGER DEFAULT 0
             )
         """)
-        # migrate existing databases that predate the clarification columns
+        # learning memory: manual corrections fed back to the AI as examples
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_name TEXT NOT NULL,
+                field TEXT NOT NULL,
+                value TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        # migrate existing databases that predate newer columns
         for col, ddl in (("needs_clarification", "INTEGER DEFAULT 0"),
-                         ("clarification_question", "TEXT DEFAULT ''")):
+                         ("clarification_question", "TEXT DEFAULT ''"),
+                         ("corrected", "INTEGER DEFAULT 0")):
             try:
                 conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {ddl}")
             except sqlite3.OperationalError:
@@ -98,12 +110,35 @@ def row_to_task(r):
         "engine": r["engine"],
         "needs_clarification": bool(r["needs_clarification"]),
         "clarification_question": r["clarification_question"] or "",
+        "corrected": bool(r["corrected"]),
     }
+
+
+# fields the AI learns from (the core "where does it belong" questions)
+LEARNABLE = ("department", "decision")
+ENUMS = {
+    "department": ai.DEPARTMENTS,
+    "business_value": ai.BUSINESS_VALUES,
+    "energy": ai.ENERGY,
+    "decision": ai.DECISIONS,
+    "drip": ai.DRIP,
+}
+
+
+def get_corrections(limit=40):
+    """Most recent manual corrections (one per task_name+field), newest first,
+    fed back to the AI as learning examples."""
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT task_name, field, value, MAX(id) AS mid FROM corrections "
+            "GROUP BY task_name, field ORDER BY mid DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [{"task_name": r["task_name"], "field": r["field"], "value": r["value"]} for r in rows]
 
 
 def create_task(person, text):
     name, minutes = ai.parse_task(text)
-    a = ai.analyze(name, minutes, person)
+    a = ai.analyze(name, minutes, person, get_corrections())
     now = datetime.now(timezone.utc).isoformat()
     with _db_lock, db() as conn:
         cur = conn.execute("""
@@ -145,7 +180,7 @@ def update_task(tid, text):
         return None
     person = existing["person"]
     name, minutes = ai.parse_task(text)
-    a = ai.analyze(name, minutes, person)
+    a = ai.analyze(name, minutes, person, get_corrections())
     with _db_lock, db() as conn:
         conn.execute("""
             UPDATE tasks SET raw_input=?, task_name=?, minutes=?, department=?,
@@ -165,6 +200,35 @@ def update_task(tid, text):
     return row_to_task(row)
 
 
+def override_task(tid, fields):
+    """Manually override classification fields (human correction). Does NOT re-run
+    the AI. Logs department/decision changes as learning examples for next time."""
+    with db() as conn:
+        row = conn.execute("SELECT task_name FROM tasks WHERE id=?", (tid,)).fetchone()
+    if not row:
+        return None
+    task_name = row["task_name"]
+    now = datetime.now(timezone.utc).isoformat()
+    sets, vals, learns = [], [], []
+    for key, val in fields.items():
+        if key in ENUMS:
+            if val in ENUMS[key]:
+                sets.append(f"{key}=?"); vals.append(val)
+                if key in LEARNABLE:
+                    learns.append((task_name, key, val, now))
+        elif key in ("interrupt", "automatable", "playbook_needed"):
+            sets.append(f"{key}=?"); vals.append(int(bool(val)))
+    with _db_lock, db() as conn:
+        if sets:
+            sets.append("corrected=?"); vals.append(1)
+            conn.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id=?", vals + [tid])
+            for ln in learns:
+                conn.execute("INSERT INTO corrections(task_name, field, value, created_at) "
+                             "VALUES(?,?,?,?)", ln)
+        r = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+    return row_to_task(r)
+
+
 def reanalyze_task(tid):
     """Re-run the AI analysis on a task using its stored name/minutes/person.
     Keeps the text, minutes and created_at; only the analysis fields change."""
@@ -173,7 +237,7 @@ def reanalyze_task(tid):
             "SELECT task_name, minutes, person FROM tasks WHERE id=?", (tid,)).fetchone()
     if not row:
         return None
-    a = ai.analyze(row["task_name"], row["minutes"], row["person"])
+    a = ai.analyze(row["task_name"], row["minutes"], row["person"], get_corrections())
     with _db_lock, db() as conn:
         conn.execute("""
             UPDATE tasks SET department=?, business_value=?, energy=?, interrupt=?,
@@ -518,6 +582,22 @@ class Handler(BaseHTTPRequestHandler):
                 }, 400)
             try:
                 task = update_task(int(parts[2]), text)
+                if task is None:
+                    return self._json({"error": "not found"}, 404)
+                return self._json(task)
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
+        return self._json({"error": "not found"}, 404)
+
+    def do_PATCH(self):
+        u = urlparse(self.path)
+        parts = u.path.strip("/").split("/")
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "tasks":
+            data = self._body()
+            if not isinstance(data, dict) or not data:
+                return self._json({"error": "no fields"}, 400)
+            try:
+                task = override_task(int(parts[2]), data)
                 if task is None:
                     return self._json({"error": "not found"}, 404)
                 return self._json(task)

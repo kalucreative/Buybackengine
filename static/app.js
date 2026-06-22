@@ -16,6 +16,10 @@ const api = {
     const r = await fetch(p, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     return r.json();
   },
+  async patch(p, body) {
+    const r = await fetch(p, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return r.json();
+  },
   async del(p) { return (await fetch(p, { method: "DELETE" })).json(); },
 };
 const h = (s) => String(s == null ? "" : s)
@@ -274,26 +278,102 @@ function drillRow(t) {
 async function openTaskDrill(bucketKey) {
   const meta = BUCKETS[bucketKey];
   if (!meta) return;
-  const all = await api.get("/api/tasks" + buildQS(dashPerson, dashRange));
-  const tasks = all.filter(meta.filter);
-  const totalMin = tasks.reduce((a, t) => a + t.minutes, 0);
   const who = dashPerson === "all" ? "KALU" : dashPerson;
-
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
-  overlay.innerHTML = `<div class="modal">
-    <div class="modal-head">
-      <div><div class="modal-title">${h(meta.label)}</div>
-        <div class="modal-sub">${who} · ${tasks.length} feladat · ${fmtH(totalMin / 60)}h${dashRange.from != null ? ` · ${h(dashRange.label)}` : ""}</div></div>
-      <button class="modal-close" title="Bezárás">×</button>
-    </div>
-    <div class="modal-body">${tasks.length
-      ? tasks.map(drillRow).join("")
-      : `<div class="empty">Nincs ide sorolt feladat ebben az időszakban.</div>`}</div>
-  </div>`;
+  overlay.innerHTML = `<div class="modal"></div>`;
   document.body.appendChild(overlay);
 
   const close = () => { overlay.remove(); document.removeEventListener("keydown", esc); };
+  const esc = (e) => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", esc);
+
+  async function load() {
+    const tasks = (await api.get("/api/tasks" + buildQS(dashPerson, dashRange))).filter(meta.filter);
+    const totalMin = tasks.reduce((a, t) => a + t.minutes, 0);
+    overlay.querySelector(".modal").innerHTML = `
+      <div class="modal-head">
+        <div><div class="modal-title">${h(meta.label)}</div>
+          <div class="modal-sub">${who} · ${tasks.length} feladat · ${fmtH(totalMin / 60)}h${dashRange.from != null ? ` · ${h(dashRange.label)}` : ""}</div></div>
+        <button class="modal-close" title="Bezárás">×</button>
+      </div>
+      <div class="modal-body">${tasks.length
+        ? tasks.map(drillRow).join("")
+        : `<div class="empty">Nincs ide sorolt feladat ebben az időszakban.</div>`}</div>`;
+    overlay.querySelector(".modal-close").addEventListener("click", close);
+    overlay.querySelectorAll(".drill-row").forEach((row, i) =>
+      row.addEventListener("click", () => openTaskDetail(tasks[i], load)));
+  }
+  load();
+}
+
+// ===== editable task detail (categories) + AI learning =====
+const F_DEPARTMENTS = ["Strategy", "Team building", "Sales", "Client Success", "Marketing", "Operations", "Finance", "HR"];
+const F_DECISIONS = ["Keep", "Delegate ASAP", "Automate", "Batch", "Playbook Needed", "Needs New Hire", "Review Later"];
+const F_DRIPS = ["Delegation", "Replacement", "Investment", "Production"];
+const F_VALUES = ["$", "$$", "$$$", "$$$$"];
+const F_ENERGIES = [["green", "Energizing"], ["yellow", "Neutral"], ["red", "Draining"]];
+
+function openTaskDetail(task, refresh) {
+  const sel = (field, opts, cur) =>
+    `<select class="detail-select" data-field="${field}">${opts.map((o) =>
+      `<option value="${h(o)}"${o === cur ? " selected" : ""}>${h(o)}</option>`).join("")}</select>`;
+  const seg = (field, opts, cur) =>
+    `<div class="detail-seg" data-field="${field}">${opts.map((o) => {
+      const [v, l] = Array.isArray(o) ? o : [o, o];
+      return `<button class="dseg${v === cur ? " active" : ""}" data-val="${h(v)}">${h(l)}</button>`;
+    }).join("")}</div>`;
+  const tog = (field, on, label) =>
+    `<button class="detail-toggle${on ? " on" : ""}" data-field="${field}">${label}</button>`;
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay detail-overlay";
+  overlay.innerHTML = `<div class="modal detail-modal">
+    <div class="modal-head">
+      <div><div class="modal-title">${h(task.task_name)}</div>
+        <div class="modal-sub">${h(task.person)} · ${task.minutes}m · ${h(fmtDateTime(task.created_at))}<span class="corrected-tag"${task.corrected ? "" : " hidden"}>kézzel javítva</span></div></div>
+      <button class="modal-close" title="Bezárás">×</button>
+    </div>
+    <div class="modal-body detail-body">
+      <div class="detail-row"><div class="detail-label">Részleg</div>${sel("department", F_DEPARTMENTS, task.department)}</div>
+      <div class="detail-row"><div class="detail-label">Érték</div>${seg("business_value", F_VALUES, task.business_value)}</div>
+      <div class="detail-row"><div class="detail-label">Energia</div>${seg("energy", F_ENERGIES, task.energy)}</div>
+      <div class="detail-row"><div class="detail-label">Döntés</div>${sel("decision", F_DECISIONS, task.decision)}</div>
+      <div class="detail-row"><div class="detail-label">DRIP</div>${sel("drip", F_DRIPS, task.drip)}</div>
+      <div class="detail-row"><div class="detail-label">Jelzők</div><div class="detail-flags">
+        ${tog("interrupt", task.interrupt, "Interrupt")}
+        ${tog("automatable", task.automatable, "Automatable")}
+        ${tog("playbook_needed", task.playbook_needed, "SOP needed")}
+      </div></div>
+      ${(task.recommendations || []).length ? `<div class="detail-recs"><div class="detail-label">Buy-back ajánlások</div><ul>${task.recommendations.map((r) => `<li>${h(r)}</li>`).join("")}</ul></div>` : ""}
+      <div class="detail-hint">A módosítás azonnal mentődik — és az AI tanul belőle (részleg + döntés), így legközelebb a hasonló feladatot jobban sorolja.</div>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  let changed = false;
+  const corrTag = overlay.querySelector(".corrected-tag");
+  async function applyField(field, value) {
+    const res = await api.patch(`/api/tasks/${task.id}`, { [field]: value });
+    if (res && !res.error) { Object.assign(task, res); changed = true; corrTag.hidden = false; }
+  }
+  overlay.querySelectorAll(".detail-select").forEach((s) =>
+    s.addEventListener("change", () => applyField(s.dataset.field, s.value)));
+  overlay.querySelectorAll(".detail-seg").forEach((g) =>
+    g.querySelectorAll(".dseg").forEach((b) => b.addEventListener("click", () => {
+      g.querySelectorAll(".dseg").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      applyField(g.dataset.field, b.dataset.val);
+    })));
+  overlay.querySelectorAll(".detail-toggle").forEach((t) =>
+    t.addEventListener("click", () => {
+      const on = !t.classList.contains("on");
+      t.classList.toggle("on", on);
+      applyField(t.dataset.field, on);
+    }));
+
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", esc); if (changed && refresh) refresh(); };
   const esc = (e) => { if (e.key === "Escape") close(); };
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
   overlay.querySelector(".modal-close").addEventListener("click", close);
@@ -459,6 +539,12 @@ async function renderPerson(person) {
     listEl.innerHTML = tasks.length ? tasks.map(taskCard).join("") : `<div class="empty">No tasks yet.</div>`;
     bindDeletes(listEl, load);
     bindEdits(listEl, load);
+    listEl.querySelectorAll(".task-card").forEach((card, i) =>
+      card.addEventListener("click", (e) => {
+        if (e.target.closest("button, input")) return;     // ignore edit/delete/clarify + edit mode
+        if (card.querySelector(".edit-input")) return;
+        openTaskDetail(tasks[i], load);
+      }));
   }
 
   form.addEventListener("submit", async (e) => {

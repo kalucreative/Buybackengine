@@ -160,7 +160,18 @@ clear, set needs_clarification=false. Only flag genuinely cryptic tasks (unknown
 clear action). EVEN WHEN you flag it, still fill in your best-guess for every other field."""
 
 
-def _call_anthropic(task_name, minutes, person):
+def _corrections_block(corrections):
+    """Build a 'learned corrections' section the AI applies to similar tasks."""
+    if not corrections:
+        return ""
+    lines = []
+    for c in corrections:
+        lines.append(f'- "{c["task_name"]}" → {c["field"]}: {c["value"]}')
+    return ("\n\nLEARNED CORRECTIONS — the team manually corrected these classifications. "
+            "Apply the SAME logic to similar tasks going forward:\n" + "\n".join(lines))
+
+
+def _call_anthropic(task_name, minutes, person, corrections=None):
     user = (
         f"Person: {person}\n"
         f"Task: {task_name}\n"
@@ -170,7 +181,7 @@ def _call_anthropic(task_name, minutes, person):
     payload = {
         "model": MODEL,
         "max_tokens": 700,
-        "system": SYSTEM_PROMPT,
+        "system": SYSTEM_PROMPT + _corrections_block(corrections),
         "messages": [{"role": "user", "content": user}],
     }
     req = urllib.request.Request(
@@ -438,11 +449,12 @@ def _coerce(result, task_name, minutes, person):
     return out
 
 
-def analyze(task_name, minutes, person):
-    """Classify a task. Uses Claude if a key is present, else heuristics."""
+def analyze(task_name, minutes, person, corrections=None):
+    """Classify a task. Uses Claude if a key is present, else heuristics.
+    `corrections` is a list of past manual fixes fed to the AI as examples."""
     if API_KEY:
         try:
-            raw = _call_anthropic(task_name, minutes, person)
+            raw = _call_anthropic(task_name, minutes, person, corrections)
             res = _coerce(raw, task_name, minutes, person)
             res["engine"] = "ai"
             return res
