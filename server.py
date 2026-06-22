@@ -61,9 +61,18 @@ def init_db():
                 playbook_needed INTEGER,
                 weekly_time_estimate REAL,
                 recommendations TEXT,
-                engine TEXT
+                engine TEXT,
+                needs_clarification INTEGER DEFAULT 0,
+                clarification_question TEXT DEFAULT ''
             )
         """)
+        # migrate existing databases that predate the clarification columns
+        for col, ddl in (("needs_clarification", "INTEGER DEFAULT 0"),
+                         ("clarification_question", "TEXT DEFAULT ''")):
+            try:
+                conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {ddl}")
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
 
 def row_to_task(r):
@@ -87,6 +96,8 @@ def row_to_task(r):
         "weekly_time_estimate": r["weekly_time_estimate"],
         "recommendations": json.loads(r["recommendations"] or "[]"),
         "engine": r["engine"],
+        "needs_clarification": bool(r["needs_clarification"]),
+        "clarification_question": r["clarification_question"] or "",
     }
 
 
@@ -99,14 +110,16 @@ def create_task(person, text):
             INSERT INTO tasks (person, raw_input, task_name, minutes, created_at,
                 department, business_value, energy, interrupt, drip, decision,
                 recommended_owner, recommended_role, automatable, playbook_needed,
-                weekly_time_estimate, recommendations, engine)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                weekly_time_estimate, recommendations, engine,
+                needs_clarification, clarification_question)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             person, text, name, minutes, now,
             a["department"], a["business_value"], a["energy"], int(a["interrupt"]),
             a["drip"], a["decision"], a["recommended_owner"], a["recommended_role"],
             int(a["automatable"]), int(a["playbook_needed"]),
             a["weekly_time_estimate"], json.dumps(a["recommendations"]), a["engine"],
+            int(a["needs_clarification"]), a["clarification_question"],
         ))
         tid = cur.lastrowid
         row = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
@@ -138,13 +151,15 @@ def update_task(tid, text):
             UPDATE tasks SET raw_input=?, task_name=?, minutes=?, department=?,
                 business_value=?, energy=?, interrupt=?, drip=?, decision=?,
                 recommended_owner=?, recommended_role=?, automatable=?,
-                playbook_needed=?, weekly_time_estimate=?, recommendations=?, engine=?
+                playbook_needed=?, weekly_time_estimate=?, recommendations=?, engine=?,
+                needs_clarification=?, clarification_question=?
             WHERE id=?
         """, (
             text, name, minutes, a["department"], a["business_value"], a["energy"],
             int(a["interrupt"]), a["drip"], a["decision"], a["recommended_owner"],
             a["recommended_role"], int(a["automatable"]), int(a["playbook_needed"]),
-            a["weekly_time_estimate"], json.dumps(a["recommendations"]), a["engine"], tid,
+            a["weekly_time_estimate"], json.dumps(a["recommendations"]), a["engine"],
+            int(a["needs_clarification"]), a["clarification_question"], tid,
         ))
         row = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
     return row_to_task(row)
@@ -164,12 +179,14 @@ def reanalyze_task(tid):
             UPDATE tasks SET department=?, business_value=?, energy=?, interrupt=?,
                 drip=?, decision=?, recommended_owner=?, recommended_role=?,
                 automatable=?, playbook_needed=?, weekly_time_estimate=?,
-                recommendations=?, engine=? WHERE id=?
+                recommendations=?, engine=?, needs_clarification=?,
+                clarification_question=? WHERE id=?
         """, (
             a["department"], a["business_value"], a["energy"], int(a["interrupt"]),
             a["drip"], a["decision"], a["recommended_owner"], a["recommended_role"],
             int(a["automatable"]), int(a["playbook_needed"]), a["weekly_time_estimate"],
-            json.dumps(a["recommendations"]), a["engine"], tid,
+            json.dumps(a["recommendations"]), a["engine"],
+            int(a["needs_clarification"]), a["clarification_question"], tid,
         ))
         r = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
     return row_to_task(r)

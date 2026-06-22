@@ -442,10 +442,16 @@ async function renderPerson(person) {
 function taskCard(t) {
   const recs = (t.recommendations || []).map((r) => `<li>${h(r)}</li>`).join("");
   const flags = [];
+  if (t.needs_clarification) flags.push(badge("b-yellow", "⚠ Pontosítható"));
   if (t.interrupt) flags.push(badge("b-red", "Interrupt"));
   if (t.automatable) flags.push(badge("b-accent", "Automatable"));
   if (t.playbook_needed) flags.push(badge("b-yellow", "SOP needed"));
-  return `<div class="task-card">
+  const clarify = t.needs_clarification && t.clarification_question
+    ? `<div class="task-clarify">
+         <span class="clarify-q">${h(t.clarification_question)}</span>
+         <button class="task-clarify-btn" data-edit="${t.id}" data-raw="${h(t.raw_input)}">Pontosítom</button>
+       </div>` : "";
+  return `<div class="task-card${t.needs_clarification ? " needs-clarify" : ""}">
     <div class="task-top">
       <div class="task-name">${h(t.task_name)}</div>
       <div class="task-min">${t.minutes}m</div>
@@ -460,6 +466,7 @@ function taskCard(t) {
       ${badge("b-dim", t.drip)}
       ${flags.join("")}
     </div>
+    ${clarify}
     ${recs ? `<div class="task-recs"><div class="rt">Buy-back moves · owner: ${h(t.recommended_owner)}</div><ul>${recs}</ul></div>` : ""}
     <div class="task-time">${h(fmtDateTime(t.created_at))}</div>
   </div>`;

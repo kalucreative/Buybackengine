@@ -304,6 +304,19 @@ main {
   text-align: right; margin-top: 12px; font-size: 11.5px; font-weight: 500;
   color: var(--text-faint); font-variant-numeric: tabular-nums;
 }
+.task-card.needs-clarify { border-color: rgba(245, 158, 11, 0.45); }
+.task-clarify {
+  margin-top: 11px; padding: 10px 12px; border-radius: 10px;
+  background: var(--yellow-soft); display: flex; align-items: center;
+  justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.task-clarify .clarify-q { font-size: 13px; color: var(--yellow-ink); font-weight: 600; }
+.task-clarify-btn {
+  border: none; border-radius: 8px; padding: 6px 12px; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; font-family: var(--font);
+  background: var(--yellow); color: #3a2a05; white-space: nowrap;
+}
+.task-clarify-btn:hover { filter: brightness(1.05); }
 .analyzing { color: var(--text-faint); font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .spinner { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

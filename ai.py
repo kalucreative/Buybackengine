@@ -110,6 +110,29 @@ valuable it is (value is captured separately in business_value). Pick exactly on
 - "Finance": invoices, payments, subscriptions, banking, accounting.
 - "HR": recruiting, applicants, interviews, contracts, vacations, onboarding.
 
+KALU TEAM — use this to resolve names mentioned in tasks and route them correctly:
+Owners/leads: Katona Zsombor ("Zsombi") = co-owner / Operatív igazgató, also runs Finance;
+Luczy Martin ("Martin") = co-owner / Kreatív igazgató, also runs Marketing/PR and HR;
+Körmendi Lili ("Lili") = Operatív vezető (ops lead).
+- Sales: Fodor Évi.
+- HR: Mészáros Fanni.
+- Finance: Katona Zsombor.
+- Strategy: Nagyváti Bogi (strategist).
+- Marketing: Luczy Martin. Social media: Katona Tamás — route to Marketing if it's KALU's
+  own content, or Client Success if it's a client's; decide from the task wording.
+- Client Success (existing clients): Account Director Kocsis Dávid; Accounts: Farkas Dorka,
+  Farkas Szandra, Lestyán Bogi, Simon Panni, Kovács Rebeka, Mucsi Dominika. Ad managers
+  (they manage CLIENTS' ads): Nikolics Daniella, Kiss Dániel, Csáfordi Dávid.
+- Operations (production / "Gyártás" — content execution): Head of Content Sóvári Robi &
+  Szabó Levi; editing/camera lead Encsi Gabi; Copywriters Gladity Alexandra, Peti Koltai,
+  Klotz Erik, Kardos Luca; Camera Kis Norbert; Editors Pósa András, Szabó Bence,
+  Kovács Richárd, Németh Dominik, Papp Zsombor; Camera+editor Molnár Peti, Pétervári Olivér,
+  Szabó Márk, Somay Áron, Bene Márk; Graphic designer Luczy Júlia; Newsletter Kiss Dániel.
+Notes: some names appear twice (Kiss Dániel, Encsi Gabi, Bene Márk) — use task context.
+The company also works with ~200 VIDEO TALENT ("szereplő") NOT listed here — if a task is
+about PAYING or TRANSFERRING money to a person who is NOT in the team list, treat it as a
+video-talent payment → department "Finance".
+
 Return ONLY a JSON object (no prose, no markdown) with EXACTLY these keys:
 {
   "department": one of ["Strategy","Team building","Sales","Client Success","Marketing","Operations","Finance","HR"],
@@ -123,12 +146,18 @@ Return ONLY a JSON object (no prose, no markdown) with EXACTLY these keys:
   "automatable": true|false,
   "playbook_needed": true|false,
   "weekly_time_estimate": number,                      // estimated minutes/week this category likely consumes
-  "recommendations": [string, ...]                     // 2-4 concrete, practical buy-back moves (tools, SOPs, hires, systems)
+  "recommendations": [string, ...],                    // 2-4 concrete, practical buy-back moves (tools, SOPs, hires, systems)
+  "needs_clarification": true|false,                   // true ONLY if the task is genuinely too vague/cryptic to classify confidently, even with the team list
+  "clarification_question": string                     // if needs_clarification: ONE short, specific Hungarian question (e.g. "Ki az a Fanni, és pontosan mi a feladat?"); otherwise ""
 }
 
 Be decisive. Low-value reactive admin (TikTok codes, permissions, status chasing, \
 Slack) -> red energy, interrupt true, $ or $$, Delegate/Automate. \
-Strategy, sales, partnerships, key hires -> green, $$$$, Keep."""
+Strategy, sales, partnerships, key hires -> green, $$$$, Keep.
+
+Clarification: keep it RARE. If the team list resolves the name or the task is reasonably \
+clear, set needs_clarification=false. Only flag genuinely cryptic tasks (unknown names, no \
+clear action). EVEN WHEN you flag it, still fill in your best-guess for every other field."""
 
 
 def _call_anthropic(task_name, minutes, person):
@@ -320,6 +349,8 @@ def heuristic_analyze(task_name, minutes, person):
         "playbook_needed": playbook_needed,
         "weekly_time_estimate": weekly,
         "recommendations": recs,
+        "needs_clarification": False,
+        "clarification_question": "",
     }
 
 
@@ -397,6 +428,13 @@ def _coerce(result, task_name, minutes, person):
         clean = [str(r).strip() for r in recs if str(r).strip()]
         if clean:
             out["recommendations"] = clean[:4]
+    if isinstance(result.get("needs_clarification"), bool):
+        out["needs_clarification"] = result["needs_clarification"]
+    if isinstance(result.get("clarification_question"), str):
+        out["clarification_question"] = result["clarification_question"].strip()
+    # only keep a question if we actually flagged clarification
+    if not out.get("needs_clarification"):
+        out["clarification_question"] = ""
     return out
 
 
