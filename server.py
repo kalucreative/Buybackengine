@@ -457,7 +457,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(PEOPLE)
         if p == "/api/tasks":
             person = q.get("person", [None])[0]
-            return self._json(list_tasks(person))
+            person = person if person in PEOPLE else None
+            fr, to = _qnum(q, "from"), _qnum(q, "to")
+            return self._json(_filter_by_date(list_tasks(person), fr, to))
         if p == "/api/dashboard":
             person = q.get("person", [None])[0]
             person = person if person in PEOPLE else None

@@ -186,6 +186,46 @@ main {
 .kpi.hero { background: linear-gradient(150deg, var(--accent-soft), transparent 72%); border-color: rgba(40,240,230,.4); }
 .kpi.hero .kpi-val { color: var(--accent-ink); }
 .kpi .kpi-icon { float: right; font-size: 16px; opacity: .5; }
+.kpi-clickable { cursor: pointer; transition: transform .1s, box-shadow .15s, border-color .15s; }
+.kpi-clickable:hover { transform: translateY(-2px); border-color: rgba(40,240,230,.5); box-shadow: 0 4px 18px rgba(16,24,40,0.08); }
+.kpi-drill {
+  display: block; margin-top: 4px; font-size: 11px; font-weight: 600;
+  color: var(--accent-ink); opacity: 0; transition: opacity .15s;
+}
+.kpi-clickable:hover .kpi-drill { opacity: 1; }
+
+/* drill-down modal */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200; background: rgba(16,24,40,0.35);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: pop .12s ease;
+}
+.modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 620px; max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 12px 50px rgba(0,0,0,0.25);
+}
+.modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 1px solid var(--border-soft);
+}
+.modal-title { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+.modal-sub { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+.modal-close {
+  background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 22px; line-height: 1; padding: 2px 6px; border-radius: 7px;
+}
+.modal-close:hover { color: var(--text); background: var(--bg-hover); }
+.modal-body { overflow-y: auto; padding: 8px 20px 16px; }
+.drill-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.drill-row:last-child { border-bottom: none; }
+.drill-main { flex: 1; min-width: 0; }
+.drill-name { font-weight: 550; }
+.drill-sub { font-size: 12px; color: var(--text-faint); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.drill-min { font-variant-numeric: tabular-nums; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
 
 /* bars */
 .bars { display: flex; flex-direction: column; gap: 11px; }

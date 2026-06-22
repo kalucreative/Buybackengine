@@ -247,6 +247,57 @@ function bindDashFilter() {
   const db = document.getElementById("dashDate");
   if (db) db.addEventListener("click", () =>
     openDatePicker(db, dashRange, (r) => { dashRange = r; renderDashboard(); }));
+  document.querySelectorAll("[data-bucket]").forEach((c) =>
+    c.addEventListener("click", () => openTaskDrill(c.dataset.bucket)));
+}
+
+// Drill-down: which tasks fall into each KPI bucket.
+const BUCKETS = {
+  delegate: { label: "Delegatable", filter: (t) => t.decision === "Delegate ASAP" },
+  automate: { label: "Automatable", filter: (t) => t.decision === "Automate" },
+  keep: { label: "Keep with founders", filter: (t) => t.decision === "Keep" },
+  batch: { label: "Batchable", filter: (t) => t.decision === "Batch" },
+  interrupt: { label: "Interruptions", filter: (t) => t.interrupt },
+};
+
+function drillRow(t) {
+  return `<div class="drill-row">
+    <div class="drill-main">
+      <div class="drill-name">${h(t.task_name)}</div>
+      <div class="drill-sub">${h(t.person)} · ${badge("b-dim", t.department)} ${badge("b-dim", t.business_value)}
+        <span class="dot ${t.energy}"></span> · ${h(fmtDateTime(t.created_at))}</div>
+    </div>
+    <div class="drill-min">${t.minutes}m</div>
+  </div>`;
+}
+
+async function openTaskDrill(bucketKey) {
+  const meta = BUCKETS[bucketKey];
+  if (!meta) return;
+  const all = await api.get("/api/tasks" + buildQS(dashPerson, dashRange));
+  const tasks = all.filter(meta.filter);
+  const totalMin = tasks.reduce((a, t) => a + t.minutes, 0);
+  const who = dashPerson === "all" ? "KALU" : dashPerson;
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `<div class="modal">
+    <div class="modal-head">
+      <div><div class="modal-title">${h(meta.label)}</div>
+        <div class="modal-sub">${who} · ${tasks.length} feladat · ${fmtH(totalMin / 60)}h${dashRange.from != null ? ` · ${h(dashRange.label)}` : ""}</div></div>
+      <button class="modal-close" title="Bezárás">×</button>
+    </div>
+    <div class="modal-body">${tasks.length
+      ? tasks.map(drillRow).join("")
+      : `<div class="empty">Nincs ide sorolt feladat ebben az időszakban.</div>`}</div>
+  </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", esc); };
+  const esc = (e) => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  document.addEventListener("keydown", esc);
 }
 
 async function renderDashboard() {
@@ -267,23 +318,23 @@ async function renderDashboard() {
     return;
   }
 
-  const kpi = (val, unit, label, cls = "", icon = "") =>
-    `<div class="card kpi ${cls}">${icon ? `<span class="kpi-icon">${icon}</span>` : ""}
+  const kpi = (val, unit, label, cls = "", icon = "", bucket = "") =>
+    `<div class="card kpi ${cls}${bucket ? " kpi-clickable" : ""}"${bucket ? ` data-bucket="${bucket}"` : ""}>${icon ? `<span class="kpi-icon">${icon}</span>` : ""}
       <div><span class="kpi-val">${val}</span> <span class="kpi-unit">${unit}</span></div>
-      <div class="kpi-label">${label}</div></div>`;
+      <div class="kpi-label">${label}${bucket ? `<span class="kpi-drill">megnézem ↗</span>` : ""}</div></div>`;
 
   view.innerHTML =
     head(`${who} · ${m.task_count} tasks logged · ${fmtH(m.total_hours)}h recorded`) + `
     <div class="grid kpis">
       ${kpi(fmtH(m.monthly_buyback_hours), "h/mo", "Estimated buy-back / month", "hero", "✦")}
-      ${kpi(fmtH(m.delegatable_hours), "h", "Delegatable", "", "→")}
-      ${kpi(fmtH(m.automatable_hours), "h", "Automatable", "", "⚙")}
-      ${kpi(fmtH(m.founder_hours), "h", "Keep with founders", "", "★")}
+      ${kpi(fmtH(m.delegatable_hours), "h", "Delegatable", "", "→", "delegate")}
+      ${kpi(fmtH(m.automatable_hours), "h", "Automatable", "", "⚙", "automate")}
+      ${kpi(fmtH(m.founder_hours), "h", "Keep with founders", "", "★", "keep")}
     </div>
     <div class="grid kpis">
       ${kpi(fmtH(m.total_hours), "h", "Total recorded", "", "")}
-      ${kpi(fmtH(m.batchable_hours), "h", "Batchable", "", "▦")}
-      ${kpi(m.interrupt_count, "", "Interruptions", "", "!")}
+      ${kpi(fmtH(m.batchable_hours), "h", "Batchable", "", "▦", "batch")}
+      ${kpi(m.interrupt_count, "", "Interruptions", "", "!", "interrupt")}
       ${kpi(fmtH(m.focus_loss_hours), "h", "Estimated focus loss", "", "")}
     </div>
 
