@@ -124,6 +124,32 @@ def list_tasks(person=None):
     return [row_to_task(r) for r in rows]
 
 
+def update_task(tid, text):
+    """Re-parse + re-analyze an edited task. Keeps the original created_at."""
+    with db() as conn:
+        existing = conn.execute("SELECT person FROM tasks WHERE id=?", (tid,)).fetchone()
+    if not existing:
+        return None
+    person = existing["person"]
+    name, minutes = ai.parse_task(text)
+    a = ai.analyze(name, minutes, person)
+    with _db_lock, db() as conn:
+        conn.execute("""
+            UPDATE tasks SET raw_input=?, task_name=?, minutes=?, department=?,
+                business_value=?, energy=?, interrupt=?, drip=?, decision=?,
+                recommended_owner=?, recommended_role=?, automatable=?,
+                playbook_needed=?, weekly_time_estimate=?, recommendations=?, engine=?
+            WHERE id=?
+        """, (
+            text, name, minutes, a["department"], a["business_value"], a["energy"],
+            int(a["interrupt"]), a["drip"], a["decision"], a["recommended_owner"],
+            a["recommended_role"], int(a["automatable"]), int(a["playbook_needed"]),
+            a["weekly_time_estimate"], json.dumps(a["recommendations"]), a["engine"], tid,
+        ))
+        row = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+    return row_to_task(row)
+
+
 def delete_task(tid):
     with _db_lock, db() as conn:
         conn.execute("DELETE FROM tasks WHERE id=?", (tid,))
@@ -389,6 +415,28 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 task = create_task(person, text)
                 return self._json(task, 201)
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
+        return self._json({"error": "not found"}, 404)
+
+    def do_PUT(self):
+        u = urlparse(self.path)
+        parts = u.path.strip("/").split("/")
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "tasks":
+            data = self._body()
+            text = (data.get("text") or "").strip()
+            if not text:
+                return self._json({"error": "empty task"}, 400)
+            if not ai.has_duration(text):
+                return self._json({
+                    "error": "Add meg mennyi időt töltöttél a feladattal! (pl. „- 10p”)",
+                    "code": "NO_TIME",
+                }, 400)
+            try:
+                task = update_task(int(parts[2]), text)
+                if task is None:
+                    return self._json({"error": "not found"}, 404)
+                return self._json(task)
             except Exception as e:
                 return self._json({"error": str(e)}, 500)
         return self._json({"error": "not found"}, 404)

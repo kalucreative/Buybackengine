@@ -221,6 +221,30 @@ main {
   font-size: 16px; padding: 2px 4px; border-radius: 6px; line-height: 1;
 }
 .task-del:hover { color: var(--red); background: var(--red-soft); }
+.task-edit {
+  background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 14px; padding: 2px 5px; border-radius: 6px; line-height: 1;
+}
+.task-edit:hover { color: var(--accent-ink); background: var(--accent-soft); }
+
+/* inline edit mode */
+.edit-input {
+  width: 100%; background: var(--bg-card); border: 1px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft); color: var(--text);
+  border-radius: 10px; padding: 12px 14px; font-size: 15px;
+  font-family: var(--font); outline: none;
+}
+.edit-input.input-error { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+.edit-actions { display: flex; gap: 8px; margin-top: 12px; }
+.btn-sm {
+  border: none; border-radius: 9px; padding: 8px 16px; font-size: 13.5px;
+  font-weight: 600; cursor: pointer; font-family: var(--font);
+  background: var(--accent); color: #04302c; transition: filter .15s;
+}
+.btn-sm:hover { filter: brightness(1.04); }
+.btn-ghost { background: var(--bg-hover); color: var(--text-dim); }
+.btn-ghost:hover { background: var(--border); color: var(--text); }
+.edit-err { margin-top: 12px; }
 .task-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; align-items: center; }
 .task-recs { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
 .task-recs .rt { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); margin-bottom: 7px; font-weight: 600; }

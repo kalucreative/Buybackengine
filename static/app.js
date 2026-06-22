@@ -12,6 +12,10 @@ const api = {
     const r = await fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     return r.json();
   },
+  async put(p, body) {
+    const r = await fetch(p, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return r.json();
+  },
   async del(p) { return (await fetch(p, { method: "DELETE" })).json(); },
 };
 const h = (s) => String(s == null ? "" : s)
@@ -251,6 +255,7 @@ async function renderPerson(person) {
       tasks.length ? `${tasks.length} tasks · ${fmtH(tasks.reduce((a, t) => a + t.minutes, 0) / 60)}h` : "";
     listEl.innerHTML = tasks.length ? tasks.map(taskCard).join("") : `<div class="empty">No tasks yet.</div>`;
     bindDeletes(listEl, load);
+    bindEdits(listEl, load);
   }
 
   form.addEventListener("submit", async (e) => {
@@ -292,6 +297,7 @@ function taskCard(t) {
     <div class="task-top">
       <div class="task-name">${h(t.task_name)}</div>
       <div class="task-min">${t.minutes}m</div>
+      <button class="task-edit" data-edit="${t.id}" data-raw="${h(t.raw_input)}" title="Szerkesztés">✎</button>
       <button class="task-del" data-del="${t.id}" title="Delete">×</button>
     </div>
     <div class="task-tags">
@@ -313,6 +319,48 @@ function bindDeletes(scope, reload) {
       await api.del(`/api/tasks/${b.dataset.del}`);
       reload();
     }));
+}
+
+const EDIT_NO_TIME = "Add meg mennyi időt töltöttél a feladattal! (pl. „- 10p”)";
+
+// Turn a task card into an inline editor; on save the AI re-analyzes the text.
+function enterEditMode(card, id, raw, reload) {
+  card.innerHTML =
+    `<input class="edit-input" value="${h(raw)}" />
+     <div class="add-error edit-err" hidden></div>
+     <div class="edit-actions">
+       <button class="btn-sm edit-save">Mentés</button>
+       <button class="btn-sm btn-ghost edit-cancel">Mégse</button>
+     </div>`;
+  const inp = card.querySelector(".edit-input");
+  const err = card.querySelector(".edit-err");
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
+  const showErr = () => { err.textContent = EDIT_NO_TIME; err.hidden = false; inp.classList.add("input-error"); };
+  const hideErr = () => { err.hidden = true; err.textContent = ""; inp.classList.remove("input-error"); };
+  inp.addEventListener("input", hideErr);
+  card.querySelector(".edit-cancel").addEventListener("click", reload);
+  const save = async () => {
+    const text = inp.value.trim();
+    hideErr();
+    if (!text) return;
+    if (!hasDuration(text)) { showErr(); return; }
+    card.innerHTML = `<div class="analyzing"><span class="spinner"></span> AI újraelemzés…</div>`;
+    const res = await api.put(`/api/tasks/${id}`, { text });
+    if (res && res.error) { enterEditMode(card, id, text, reload); card.querySelector(".edit-err").textContent = res.error; card.querySelector(".edit-err").hidden = false; }
+    else reload();
+  };
+  card.querySelector(".edit-save").addEventListener("click", save);
+  inp.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); save(); }
+    else if (e.key === "Escape") reload();
+  });
+}
+
+function bindEdits(scope, reload) {
+  scope.querySelectorAll("[data-edit]").forEach((b) =>
+    b.addEventListener("click", () =>
+      enterEditMode(b.closest(".task-card"), b.dataset.edit, b.dataset.raw, reload)));
 }
 
 // ================= AI INSIGHTS =================
