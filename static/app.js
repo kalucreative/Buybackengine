@@ -91,21 +91,173 @@ function bindSeg(id, cb) {
 }
 const personQS = (p) => (p === "all" ? "" : `?person=${encodeURIComponent(p)}`);
 
+// ============ date-range filter (Meta-style calendar) ============
+let dashRange = { from: null, to: null, label: "Teljes időszak" };
+let insightRange = { from: null, to: null, label: "Teljes időszak" };
+
+function buildQS(person, range) {
+  const parts = [];
+  if (person && person !== "all") parts.push("person=" + encodeURIComponent(person));
+  if (range && range.from != null) parts.push("from=" + range.from);
+  if (range && range.to != null) parts.push("to=" + range.to);
+  return parts.length ? "?" + parts.join("&") : "";
+}
+
+function dateBtnHTML(id, range) {
+  return `<button class="datebtn" id="${id}"><span class="cal-ico">▦</span>${h(range.label)}<span class="caret">▾</span></button>`;
+}
+
+const MONTHS_HU = ["Január", "Február", "Március", "Április", "Május", "Június",
+  "Július", "Augusztus", "Szeptember", "Október", "November", "December"];
+const WD_HU = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
+const _sod = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const _eod = (d) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
+const _sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const _md = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${p(d.getMonth() + 1)}.${p(d.getDate())}`; };
+function _rangeLabel(f, t) {
+  if (!f && !t) return "Teljes időszak";
+  if (f && t) return _sameDay(f, t) ? _md(f) : `${_md(f)} – ${_md(t)}`;
+  return f ? `${_md(f)} –` : `– ${_md(t)}`;
+}
+function _datePresets() {
+  const today = new Date();
+  const sub = (n) => { const x = new Date(today); x.setDate(today.getDate() - n); return x; };
+  const mStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  return [
+    ["Ma", today, today], ["Tegnap", sub(1), sub(1)],
+    ["Utolsó 7 nap", sub(6), today], ["Utolsó 30 nap", sub(29), today],
+    ["Ez a hónap", mStart, today], ["Teljes időszak", null, null],
+  ];
+}
+
+let _openPop = null;
+function _closePop() {
+  if (_openPop) {
+    _openPop.remove(); _openPop = null;
+    document.removeEventListener("mousedown", _outsidePop);
+    document.removeEventListener("keydown", _escPop);
+  }
+}
+function _outsidePop(e) {
+  if (_openPop && !_openPop.contains(e.target) && !e.target.closest(".datebtn")) _closePop();
+}
+function _escPop(e) { if (e.key === "Escape") _closePop(); }
+
+function openDatePicker(anchor, current, onApply) {
+  _closePop();
+  let selFrom = current.from != null ? _sod(new Date(current.from)) : null;
+  let selTo = current.to != null ? _sod(new Date(current.to)) : null;
+  let presetLabel = (selFrom || selTo) ? null : "Teljes időszak";
+  let view = new Date(selFrom || new Date()); view.setDate(1);
+
+  const pop = document.createElement("div");
+  pop.className = "datepop";
+  document.body.appendChild(pop);
+  _openPop = pop;
+
+  function monthHTML(year, month) {
+    const startWd = (new Date(year, month, 1).getDay() + 6) % 7;
+    const dim = new Date(year, month + 1, 0).getDate();
+    let cells = "";
+    for (let i = 0; i < startWd; i++) cells += `<div class="cal-cell empty"></div>`;
+    for (let day = 1; day <= dim; day++) {
+      const d = new Date(year, month, day);
+      const cls = ["cal-cell"];
+      if (selFrom && selTo && d >= selFrom && d <= selTo) cls.push("in-range");
+      if (_sameDay(d, selFrom) || _sameDay(d, selTo)) cls.push("endpoint");
+      cells += `<button class="${cls.join(" ")}" data-day="${year}-${month}-${day}">${day}</button>`;
+    }
+    return `<div class="cal-month"><div class="cal-mhead">${MONTHS_HU[month]} ${year}</div>
+      <div class="cal-grid">${WD_HU.map((w) => `<div class="cal-wd">${w}</div>`).join("")}${cells}</div></div>`;
+  }
+
+  function render() {
+    const y = view.getFullYear(), m = view.getMonth();
+    const nxt = new Date(y, m + 1, 1);
+    pop.innerHTML =
+      `<div class="dp-presets">${_datePresets().map(([lbl], i) =>
+        `<button class="dp-preset" data-preset="${i}">${lbl}</button>`).join("")}</div>
+      <div class="dp-cal">
+        <div class="dp-calhead">
+          <button class="dp-nav" data-nav="-1">‹</button>
+          <div class="dp-range">${_rangeLabel(selFrom, selTo)}</div>
+          <button class="dp-nav" data-nav="1">›</button>
+        </div>
+        <div class="dp-months">${monthHTML(y, m)}<div class="dp-month2">${monthHTML(nxt.getFullYear(), nxt.getMonth())}</div></div>
+        <div class="dp-actions">
+          <button class="btn-sm btn-ghost dp-cancel">Mégse</button>
+          <button class="btn-sm dp-apply">Alkalmaz</button>
+        </div>
+      </div>`;
+    bind();
+    position();
+  }
+
+  function bind() {
+    pop.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
+      const [lbl, f, t] = _datePresets()[+b.dataset.preset];
+      selFrom = f ? _sod(f) : null; selTo = t ? _sod(t) : null; presetLabel = lbl;
+      if (selFrom) { view = new Date(selFrom); view.setDate(1); }
+      render();
+    }));
+    pop.querySelectorAll("[data-nav]").forEach((b) => b.addEventListener("click", () => {
+      view.setMonth(view.getMonth() + Number(b.dataset.nav)); render();
+    }));
+    pop.querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => {
+      const [yy, mm, dd] = b.dataset.day.split("-").map(Number);
+      const d = new Date(yy, mm, dd); presetLabel = null;
+      if (!selFrom || (selFrom && selTo)) { selFrom = d; selTo = null; }
+      else if (d < selFrom) { selFrom = d; }
+      else { selTo = d; }
+      render();
+    }));
+    pop.querySelector(".dp-cancel").addEventListener("click", _closePop);
+    pop.querySelector(".dp-apply").addEventListener("click", () => {
+      const f = selFrom, t = selTo || selFrom;
+      const range = (!f && !t)
+        ? { from: null, to: null, label: "Teljes időszak" }
+        : { from: _sod(f).getTime(), to: _eod(t).getTime(), label: presetLabel || _rangeLabel(f, t) };
+      _closePop();
+      onApply(range);
+    });
+  }
+
+  function position() {
+    const r = anchor.getBoundingClientRect();
+    pop.style.position = "absolute";
+    pop.style.top = (r.bottom + window.scrollY + 8) + "px";
+    let left = r.right + window.scrollX - pop.offsetWidth;
+    if (left < 8) left = 8;
+    pop.style.left = left + "px";
+  }
+
+  render();
+  setTimeout(() => {
+    document.addEventListener("mousedown", _outsidePop);
+    document.addEventListener("keydown", _escPop);
+  }, 0);
+}
+
 // ================= DASHBOARD =================
 let dashPerson = "all"; // "all" | "Zsombor" | "Martin" | "Lili"
 
 function bindDashFilter() {
   bindSeg("dashFilter", (p) => { dashPerson = p; renderDashboard(); });
+  const db = document.getElementById("dashDate");
+  if (db) db.addEventListener("click", () =>
+    openDatePicker(db, dashRange, (r) => { dashRange = r; renderDashboard(); }));
 }
 
 async function renderDashboard() {
   const head = (sub) => `<div class="page-head">
-    <div class="head-row"><div class="page-title">Dashboard</div>${segmented("dashFilter", dashPerson)}</div>
+    <div class="head-row"><div class="page-title">Dashboard</div>
+      <div class="head-controls">${segmented("dashFilter", dashPerson)}${dateBtnHTML("dashDate", dashRange)}</div></div>
     <div class="page-sub">${sub}</div></div>`;
   view.innerHTML = head("Where founder time goes — and how much we can buy back.") + `<div class="empty">Loading…</div>`;
   bindDashFilter();
 
-  const m = await api.get("/api/dashboard" + personQS(dashPerson));
+  const m = await api.get("/api/dashboard" + buildQS(dashPerson, dashRange));
   const who = dashPerson === "all" ? "KALU" : dashPerson;
 
   if (!m.task_count) {
@@ -367,16 +519,20 @@ function bindEdits(scope, reload) {
 let insightPerson = "all";
 function bindInsFilter() {
   bindSeg("insFilter", (p) => { insightPerson = p; renderInsights(); });
+  const db = document.getElementById("insDate");
+  if (db) db.addEventListener("click", () =>
+    openDatePicker(db, insightRange, (r) => { insightRange = r; renderInsights(); }));
 }
 
 async function renderInsights() {
   const head = (sub) => `<div class="page-head">
-    <div class="head-row"><div class="page-title">AI Insights</div>${segmented("insFilter", insightPerson)}</div>
+    <div class="head-row"><div class="page-title">AI Insights</div>
+      <div class="head-controls">${segmented("insFilter", insightPerson)}${dateBtnHTML("insDate", insightRange)}</div></div>
     <div class="page-sub">${sub}</div></div>`;
   view.innerHTML = head("Executive summary") + `<div class="empty">Loading…</div>`;
   bindInsFilter();
 
-  const i = await api.get("/api/insights" + personQS(insightPerson));
+  const i = await api.get("/api/insights" + buildQS(insightPerson, insightRange));
   const m = i.metrics;
   const who = insightPerson === "all" ? "the founders are" : insightPerson + " is";
   const whoShort = insightPerson === "all" ? "KALU" : insightPerson;

@@ -117,6 +117,55 @@ main {
 .seg:hover { color: var(--text); }
 .seg.active { background: var(--accent); color: #04302c; font-weight: 700; }
 
+/* date-range filter */
+.head-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.datebtn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 11px;
+  padding: 7px 13px; font-size: 13px; font-weight: 550; color: var(--text);
+  cursor: pointer; font-family: var(--font);
+}
+.datebtn:hover { background: var(--bg-hover); }
+.datebtn .cal-ico { color: var(--accent-ink); font-size: 13px; }
+.datebtn .caret { color: var(--text-faint); font-size: 10px; }
+
+.datepop {
+  z-index: 100; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: var(--shadow); display: flex; overflow: hidden;
+  animation: pop .15s ease;
+}
+.dp-presets {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px;
+  border-right: 1px solid var(--border-soft); min-width: 152px;
+}
+.dp-preset {
+  text-align: left; background: none; border: none; border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; color: var(--text-dim); cursor: pointer;
+  font-family: var(--font); white-space: nowrap;
+}
+.dp-preset:hover { background: var(--bg-hover); color: var(--text); }
+.dp-cal { padding: 12px; }
+.dp-calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 12px; }
+.dp-range { font-size: 13px; font-weight: 600; color: var(--text); }
+.dp-nav {
+  background: var(--bg-hover); border: none; border-radius: 7px; width: 28px; height: 28px;
+  cursor: pointer; font-size: 16px; color: var(--text-dim); line-height: 1;
+}
+.dp-nav:hover { background: var(--border); color: var(--text); }
+.dp-months { display: flex; gap: 18px; }
+.cal-mhead { text-align: center; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 32px); gap: 2px; }
+.cal-wd { text-align: center; font-size: 11px; color: var(--text-faint); height: 24px; line-height: 24px; }
+.cal-cell {
+  height: 32px; border: none; background: none; border-radius: 8px;
+  font-size: 13px; color: var(--text); cursor: pointer; font-family: var(--font);
+}
+.cal-cell.empty { visibility: hidden; cursor: default; }
+.cal-cell:hover { background: var(--bg-hover); }
+.cal-cell.in-range { background: var(--accent-soft); border-radius: 0; }
+.cal-cell.endpoint { background: var(--accent); color: #04302c; font-weight: 700; border-radius: 8px; }
+.dp-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
 /* ---------------- Cards / grid ---------------- */
 .grid { display: grid; gap: 14px; }
 .kpis { grid-template-columns: repeat(4, 1fr); margin-bottom: 14px; }
@@ -298,4 +347,14 @@ main {
   /* shrink only the placeholder so the full hint fits; typed text stays readable */
   .add-input { padding: 14px 14px; }
   .add-input::placeholder { font-size: 12px; letter-spacing: -0.2px; }
+  /* date picker: one month, presets wrap, full-width sheet */
+  .datepop { flex-direction: column; left: 8px !important; right: 8px !important; }
+  .dp-presets {
+    flex-direction: row; flex-wrap: wrap; min-width: 0;
+    border-right: none; border-bottom: 1px solid var(--border-soft);
+  }
+  .dp-month2 { display: none; }
+  .dp-cal { padding: 14px; }
+  .cal-grid { grid-template-columns: repeat(7, 1fr); }
+  .cal-cell { height: 40px; }
 }

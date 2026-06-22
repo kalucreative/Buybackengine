@@ -163,8 +163,27 @@ def _hours(minutes):
     return round(minutes / 60.0, 1)
 
 
-def compute_metrics(person=None):
-    tasks = list_tasks(person)
+def _filter_by_date(tasks, date_from, date_to):
+    """Keep tasks whose created_at falls within [date_from, date_to] (epoch ms)."""
+    if date_from is None and date_to is None:
+        return tasks
+    out = []
+    for t in tasks:
+        try:
+            ms = datetime.fromisoformat(t["created_at"]).timestamp() * 1000
+        except Exception:
+            out.append(t)
+            continue
+        if date_from is not None and ms < date_from:
+            continue
+        if date_to is not None and ms > date_to:
+            continue
+        out.append(t)
+    return out
+
+
+def compute_metrics(person=None, date_from=None, date_to=None):
+    tasks = _filter_by_date(list_tasks(person), date_from, date_to)
     n = len(tasks)
     total_min = sum(t["minutes"] for t in tasks)
 
@@ -295,8 +314,8 @@ def compute_hiring(tasks):
     return out
 
 
-def compute_insights(person=None):
-    m = compute_metrics(person)
+def compute_insights(person=None, date_from=None, date_to=None):
+    m = compute_metrics(person, date_from, date_to)
     total = m["total_minutes"] or 1
     # department percentages
     dept_pct = [
@@ -330,6 +349,17 @@ def compute_insights(person=None):
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
+
+def _qnum(q, key):
+    """Parse a numeric query param (epoch ms) to float, or None."""
+    val = q.get(key, [None])[0]
+    if val in (None, ""):
+        return None
+    try:
+        return float(val)
+    except ValueError:
+        return None
+
 
 MIME = {".html": "text/html", ".js": "application/javascript",
         ".css": "text/css", ".json": "application/json",
@@ -390,11 +420,13 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/dashboard":
             person = q.get("person", [None])[0]
             person = person if person in PEOPLE else None
-            return self._json(compute_metrics(person))
+            fr, to = _qnum(q, "from"), _qnum(q, "to")
+            return self._json(compute_metrics(person, fr, to))
         if p == "/api/insights":
             person = q.get("person", [None])[0]
             person = person if person in PEOPLE else None
-            return self._json(compute_insights(person))
+            fr, to = _qnum(q, "from"), _qnum(q, "to")
+            return self._json(compute_insights(person, fr, to))
         return self._json({"error": "not found"}, 404)
 
     def do_POST(self):
