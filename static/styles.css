@@ -128,15 +128,6 @@ main {
 .datebtn:hover { background: var(--bg-hover); }
 .datebtn .cal-ico { color: var(--accent-ink); font-size: 13px; }
 .datebtn .caret { color: var(--text-faint); font-size: 10px; }
-.reanalyze-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: none; border: 1px solid var(--border); border-radius: 11px;
-  padding: 7px 13px; font-size: 13px; font-weight: 550; color: var(--text-dim);
-  cursor: pointer; font-family: var(--font);
-}
-.reanalyze-btn:hover { background: var(--bg-hover); color: var(--text); }
-.reanalyze-btn:disabled { cursor: default; opacity: .85; }
-.reanalyze-btn .spinner { width: 12px; height: 12px; }
 
 .datepop {
   z-index: 100; background: var(--bg-card); border: 1px solid var(--border);
