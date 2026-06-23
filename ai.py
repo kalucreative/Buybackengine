@@ -133,6 +133,21 @@ The company also works with ~200 VIDEO TALENT ("szereplő") NOT listed here — 
 about PAYING or TRANSFERRING money to a person who is NOT in the team list, treat it as a
 video-talent payment → department "Finance".
 
+WHO LOGGED IT MATTERS — classify relative to the "Person" who logged the task. The SAME
+task text can (and should) be classified differently depending on the person's role:
+- Zsombor and Martin are the OWNERS (founders). The engine exists to buy back THEIR time.
+  For a founder's task: only true owner-level work (strategy, sales, partnerships, major
+  decisions, key hires) is "Keep" / $$$$ / green. Operational, admin, coordination or
+  repeatable work is NOT theirs — lean to Delegate ASAP / Automate / Batch / Playbook, and
+  set recommended_owner to who should take it (Lili or an assistant), NOT the founder.
+- Körmendi Lili is the OPERATÍV VEZETŐ (ops lead). Running the day-to-day — coordination,
+  internal organization, problem-solving, access, scheduling, Slack triage — IS her job.
+  Do NOT treat her operational work as misplaced founder time. For Lili's task: core
+  ops-lead work she should own = "Keep" (recommended_owner "Keep with Lili"); routine
+  execution she could hand down = Delegate ASAP / Playbook with an Operations/Founder
+  Assistant as owner; owner-level strategy/sales is NOT hers. Never set "Keep with founder"
+  for Lili's tasks.
+
 Return ONLY a JSON object (no prose, no markdown) with EXACTLY these keys:
 {
   "department": one of ["Strategy","Team building","Sales","Client Success","Marketing","Operations","Finance","HR"],
@@ -340,6 +355,14 @@ def heuristic_analyze(task_name, minutes, person):
         owner, role = "Ops / HR Assistant", "Operations Assistant"
     else:
         owner, role = "Lili", "Operations Lead"
+
+    # Role-aware: Lili is the ops lead — her operational work is appropriately hers,
+    # not misplaced founder time. Owner-level labels don't apply to her.
+    if person == "Lili":
+        if dept == "Operations" and decision == "Delegate ASAP":
+            decision = "Keep"   # running day-to-day ops is the ops lead's own job
+        if decision == "Keep" or owner == "Keep with founder":
+            owner, role = "Keep with Lili", "Operatív vezető"
 
     recs = _heuristic_recs(dept, decision, automatable, playbook_needed, t)
 
